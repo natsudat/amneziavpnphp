@@ -163,6 +163,64 @@ CREATE TABLE IF NOT EXISTS server_backups (
 INSERT IGNORE INTO users (email, password_hash, name, role, status) 
 VALUES ('admin@amnez.ia', '$2y$10$SKEI6ogiWr2gsSG/nELLp.JcfpGhxsDLAAI7gdtTOI3ELz4zJzzPG', 'Administrator', 'admin', 'active');
 
+
+-- ============================================================
+-- V2.0 Customization: Managers, Clients, Client Configs
+-- ============================================================
+
+-- Managers table (V2.0)
+CREATE TABLE IF NOT EXISTS managers (
+  manager_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  external_whmcs_id VARCHAR(255) NULL COMMENT 'ID from WHMCS billing',
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  status ENUM('active', 'disabled') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_login_at TIMESTAMP NULL,
+  INDEX idx_email (email),
+  INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Clients table (V2.0) - replaces the concept of "users" for VPN end-customers
+CREATE TABLE IF NOT EXISTS clients (
+  client_id VARCHAR(16) NOT NULL PRIMARY KEY COMMENT 'Format: AAAAXXXXXXXXXXXX',
+  manager_id INT UNSIGNED NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NULL,
+  phone VARCHAR(50) NULL,
+  is_active TINYINT(1) DEFAULT 1 COMMENT '1=active, 0=suspended',
+  expires_at DATE NULL COMMENT 'Client ID expiration date',
+  traffic_limit_mb INT UNSIGNED NULL COMMENT 'Monthly traffic limit in MB',
+  notes TEXT NULL COMMENT 'Manager notes',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_manager_id (manager_id),
+  INDEX idx_is_active (is_active),
+  INDEX idx_expires_at (expires_at),
+  FOREIGN KEY (manager_id) REFERENCES managers(manager_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Client Configs table (V2.0)
+CREATE TABLE IF NOT EXISTS client_configs (
+  config_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  client_id VARCHAR(16) NOT NULL,
+  server_id INT UNSIGNED NOT NULL,
+  protocol VARCHAR(50) NOT NULL COMMENT 'e.g., wireguard, openvpn, shadowsocks',
+  config_payload TEXT NULL COMMENT 'Full config file content',
+  config_qr LONGTEXT NULL COMMENT 'Base64 encoded QR code',
+  config_hash VARCHAR(64) NULL COMMENT 'Config hash for integrity check',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_client_id (client_id),
+  INDEX idx_server_id (server_id),
+  INDEX idx_protocol (protocol),
+  UNIQUE KEY unique_client_server_protocol (client_id, server_id, protocol),
+  FOREIGN KEY (client_id) REFERENCES clients(client_id) ON DELETE CASCADE,
+  FOREIGN KEY (server_id) REFERENCES vpn_servers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 -- Insert supported languages
 INSERT INTO languages (code, name, native_name) VALUES
 ('en', 'English', 'English'),
