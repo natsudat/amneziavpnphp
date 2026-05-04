@@ -62,4 +62,8 @@ class ClientIdGenerator
         $stmt->execute([$clientId]);
         return (bool) $stmt->fetch();
     }
+    public static function validate(string $clientId): bool
+    {
+        return (bool) preg_match('/^[A-Z]{4}[0-9]{12}$/', $clientId);
+    }
 }
